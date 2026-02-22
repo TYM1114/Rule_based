@@ -52,7 +52,7 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map):
     cdef int i, r, b, t, k, a, p, targetId, blockerId, bestAgvIdx, bestPort, best_return_agv_idx
     cdef int box_id, target_count, path_length, tier_idx, min_target_count_so_far, min_path_so_far
     cdef double minPenalty, bestFinish, bestStart, start, finish, arrivalAtPort, processStart, portFinish, penalty, current_pickup_end
-    cdef double best_return_finish, best_return_start, temp_finish_time, container_ready_time, travel_to_port, pickup_start, pickup_end, arrival_at_dst, dropoff_start
+    cdef double best_return_finish, best_return_start, temp_finish_time, container_ready_time, travel_to_port, pickup_start, pickup_end, arrival_at_dst, dropoff_start, best_return_pickup_start
     cdef unordered_map[int, bint] remaining_targets_map
     cdef list potential_slots, best_class_slots
     cdef dict best_slot
@@ -61,6 +61,7 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map):
     cdef Coordinate src_coord, bestDst_coord
     cdef vector[int] blockers
     cdef bint found_slot
+    cdef int bestWorkstation, w_id, workstation_bay, best_w_id
     
     # 系統初始化
     cdef YardSystem yard = YardSystem(config['max_row'], config['max_bay'], config['max_level'], config['total_boxes'])
@@ -74,6 +75,7 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map):
 
     cdef int agvCount = config['agv_count']
     cdef int portCount = config['port_count']
+    cdef int workstationCount = config.get('workstation_count', 1)
     cdef double w_lookahead = config['w_penalty_lookahead']
     cdef double t_travel = config['t_travel']
     cdef double t_handle = config['t_handle']
@@ -82,8 +84,8 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map):
     cdef long long sim_start = config['sim_start_epoch']
 
     cdef unordered_map[int, double] containerAvailableTime 
-    cdef vector[double] portBusyTime
-    portBusyTime.resize(portCount + 1, 0.0)
+    cdef vector[vector[double]] portBusyTime
+    portBusyTime.resize(workstationCount + 1, vector[double](portCount + 1, 0.0))
     cdef vector[vector[double]] gridBusyTime
     gridBusyTime.resize(yard.MAX_ROWS, vector[double](yard.MAX_BAYS, 0.0))
     
@@ -172,45 +174,49 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map):
         final_travel_to_src = 0.0 # 此處保留原變數名
         final_pickupTime = 0.0
         bestFinish = 1e18
-        bestPort = 1
-        bestAgvIdx = 0
+        bestPort = -1
+        bestAgvIdx = -1
         bestStart = 0.0
+        bestWorkstation = -1
 
         for a in range(agvCount):
-            for p in range(1, portCount + 1):
-                # 1. 提前出發
-                start_move = max(agvs[a].availableTime, containerAvailableTime[targetId])
-                # 2. 抵達起點與等待
-                at_src = start_move + (abs(agvs[a].currentPos.row - src_coord.row) + abs(agvs[a].currentPos.bay - src_coord.bay)) * t_travel
-                pickup_start = max(at_src, gridBusyTime[src_coord.row][src_coord.bay])
-                pickup_end = pickup_start + t_handle
-                # 3. 搬運至 Port 與等待
-                at_port = pickup_end + (abs(src_coord.row - (-1)) + abs(src_coord.bay - (-1))) * t_travel
-                processStart = max(at_port, portBusyTime[p])
-                finish_dropoff = processStart + t_handle # 這是 AGV 自由的時刻 (140s)
-                
-                # 計算 Picking 完工時間供 Phase 3 使用
-                portFinish = finish_dropoff + t_process + c_sku_map[targetId] * t_pick
-                
-                if portFinish < bestFinish:
-                    bestFinish = portFinish
-                    bestAgvIdx = a
-                    bestPort = p
-                    bestStart = start_move
-                    final_pickupTime = finish_dropoff # End_s = 140
-                    current_pickup_end = pickup_end # 80s
+            for w_id in range(1, workstationCount + 1):
+                workstation_bay = -w_id
+                for p in range(1, portCount + 1):
+                    # 1. 提前出發
+                    start_move = max(agvs[a].availableTime, containerAvailableTime[targetId])
+                    # 2. 抵達起點與等待
+                    at_src = start_move + (abs(agvs[a].currentPos.row - src_coord.row) + abs(agvs[a].currentPos.bay - src_coord.bay)) * t_travel
+                    pickup_start = max(at_src, gridBusyTime[src_coord.row][src_coord.bay])
+                    pickup_end = pickup_start + t_handle
+                    # 3. 搬運至 Port 與等待
+                    at_port = pickup_end + (abs(src_coord.row - (-1)) + abs(src_coord.bay - workstation_bay)) * t_travel
+                    processStart = max(at_port, portBusyTime[w_id][p])
+                    finish_dropoff = processStart + t_handle # 這是 AGV 自由的時刻 (140s)
+                    
+                    # 計算 Picking 完工時間供 Phase 3 使用
+                    portFinish = finish_dropoff + t_process + c_sku_map[targetId] * t_pick
+                    
+                    if portFinish < bestFinish:
+                        bestFinish = portFinish
+                        bestAgvIdx = a
+                        bestWorkstation = workstation_bay
+                        bestPort = p
+                        bestStart = start_move
+                        final_pickupTime = finish_dropoff # End_s = 140
+                        current_pickup_end = pickup_end # 80s
 
         yard.removeBox(targetId)
         agvs[bestAgvIdx].availableTime = final_pickupTime 
-        agvs[bestAgvIdx].currentPos = Coordinate(-1, -1, bestPort)
-        containerAvailableTime[targetId] = bestFinish 
-        portBusyTime[bestPort] = bestFinish
+        agvs[bestAgvIdx].currentPos = Coordinate(-1, bestWorkstation, bestPort)
+        best_w_id = -bestWorkstation
+        portBusyTime[best_w_id][bestPort] = bestFinish
         gridBusyTime[src_coord.row][src_coord.bay] = current_pickup_end # 80s 釋放起點
         
         pl = PyMissionLog()
         pl.mission_no = len(py_logs) + 1; pl.agv_id = bestAgvIdx; pl.mission_type = "target"
         pl.container_id = targetId; pl.related_target_id = targetId
-        pl.src = (src_coord.row, src_coord.bay, src_coord.tier); pl.dst = (-1, -1, bestPort)
+        pl.src = (src_coord.row, src_coord.bay, src_coord.tier); pl.dst = (-1, bestWorkstation, bestPort)
         pl.start_time = <long long>(bestStart + sim_start)
         pl.end_time = <long long>(final_pickupTime + sim_start)
         pl.makespan = final_pickupTime
@@ -235,7 +241,7 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map):
                             if remaining_targets_map.count(box_id):
                                 target_count += 1
                     
-                    path_length = r + b + 2 # Simplified Manhattan distance from port at (-1, -1)
+                    path_length = abs(r - (-1)) + abs(b - bestWorkstation)
 
                     # Inline decision making
                     if target_count < min_target_count_so_far:
@@ -259,15 +265,16 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map):
             best_return_finish = 1e18
             best_return_agv_idx = -1
             best_return_start = 0.0
+            best_return_pickup_start = 0.0
 
-            container_ready_time = portBusyTime[bestPort]
+            container_ready_time = portBusyTime[best_w_id][bestPort]
 
             for a in range(agvCount):
-                travel_to_port = (abs(agvs[a].currentPos.row - (-1)) + abs(agvs[a].currentPos.bay - (-1))) * t_travel
+                travel_to_port = (abs(agvs[a].currentPos.row - (-1)) + abs(agvs[a].currentPos.bay - bestWorkstation)) * t_travel
                 arrival_at_port = agvs[a].availableTime + travel_to_port
                 pickup_start = max(arrival_at_port, container_ready_time)
                 pickup_end = pickup_start + t_handle
-                travel_to_dst = (abs((-1) - bestDst_coord.row) + abs((-1) - bestDst_coord.bay)) * t_travel
+                travel_to_dst = (abs((-1) - bestDst_coord.row) + abs(bestWorkstation - bestDst_coord.bay)) * t_travel
                 arrival_at_dst = pickup_end + travel_to_dst
                 dropoff_start = max(arrival_at_dst, gridBusyTime[bestDst_coord.row][bestDst_coord.bay])
                 temp_finish_time = dropoff_start + t_handle
@@ -276,12 +283,13 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map):
                     best_return_finish = temp_finish_time
                     best_return_agv_idx = a
                     best_return_start = pickup_start - travel_to_port
+                    best_return_pickup_start = pickup_start
             
             if best_return_agv_idx != -1:
                 yard.initBox(targetId, bestDst_coord.row, bestDst_coord.bay, bestDst_coord.tier)
                 agvs[best_return_agv_idx].availableTime = best_return_finish
                 agvs[best_return_agv_idx].currentPos = bestDst_coord
-                containerAvailableTime[targetId] = best_return_finish 
+                # containerAvailableTime[targetId] is NOT updated for return mission to allow re-retrieval
                 gridBusyTime[bestDst_coord.row][bestDst_coord.bay] = best_return_finish
                 
                 pl = PyMissionLog()
@@ -290,11 +298,12 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map):
                 pl.mission_type = "return"
                 pl.container_id = targetId
                 pl.related_target_id = targetId
-                pl.src = (-1, -1, bestPort)
+                pl.src = (-1, bestWorkstation, bestPort)
                 pl.dst = (bestDst_coord.row, bestDst_coord.bay, bestDst_coord.tier)
-                pl.start_time = <long long>(best_return_start + sim_start)
+                pl.start_time = <long long>(best_return_pickup_start + sim_start)
                 pl.end_time = <long long>(best_return_finish + sim_start)
                 pl.makespan = best_return_finish
                 py_logs.append(pl)
 
     return py_logs
+    

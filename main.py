@@ -24,6 +24,7 @@ GLOBAL_CONFIG = {
     'sim_start_epoch': 1705363200,
     'w_penalty_blocking': 2000.0,  
     'w_penalty_lookahead': 500.0,
+    'workstation_count': 3,
     'port_count': 5
 }
 
@@ -79,14 +80,14 @@ def load_csv_data():
 
 def main():
 
-    # gen_yard.generate_yard_with_config(GLOBAL_CONFIG)
-    # job_sequence = gen_sequence.generate_sequence_with_config(GLOBAL_CONFIG)
+    gen_yard.generate_yard_with_config(GLOBAL_CONFIG)
+    job_sequence = gen_sequence.generate_sequence_with_config(GLOBAL_CONFIG)
 
     start_t = time.perf_counter()
     
     boxes, commands, sku_map = load_csv_data()
     
-    job_sequence = [cmd['id'] for cmd in commands if cmd['type'] == 'target']
+    # job_sequence = [cmd['id'] for cmd in commands if cmd['type'] == 'target']
     
     USE_RULE_BASED = True
 
@@ -104,7 +105,8 @@ def main():
             GLOBAL_CONFIG['sim_start_epoch'],
             GLOBAL_CONFIG['w_penalty_blocking'], 
             GLOBAL_CONFIG['w_penalty_lookahead'],
-            GLOBAL_CONFIG['port_count']
+            GLOBAL_CONFIG['port_count'],
+            GLOBAL_CONFIG['workstation_count']
         )
         logs = bs_solver.run_fixed_solver(GLOBAL_CONFIG, boxes, commands, job_sequence, sku_map)
     
@@ -122,12 +124,12 @@ def main():
         
         for log in logs:
             if log.src[0] == -1:
-                s_str = f"work station (Port {log.src[2]})"
+                s_str = f"work station {abs(log.src[1])} (Port {log.src[2]})"
             else:
                 s_str = f"({log.src[0]};{log.src[1]};{log.src[2]})"
             
             if log.dst[0] == -1:
-                d_str = f"work station (Port {log.dst[2]})"
+                d_str = f"work station {abs(log.dst[1])} (Port {log.dst[2]})"
             else:
                 d_str = f"({log.dst[0]};{log.dst[1]};{log.dst[2]})"
 
