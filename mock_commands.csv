@@ -1,7 +1,0 @@
-cmd_no,batch_id,cmd_type,cmd_priority,parent_carrier_id,src_row,src_bay,src_level,dest_row,dest_bay,dest_level,create_time,sku_qty
-1,20260124,target,1,2,0,0,1,-1,-1,-1,1705363200,2
-2,20260124,target,2,4,0,1,1,-1,-1,-1,1705363200,23
-3,20260124,target,3,6,1,1,1,-1,-1,-1,1705363200,11
-4,20260124,target,4,1,0,0,0,-1,-1,-1,1705363200,29
-5,20260124,target,5,3,0,1,0,-1,-1,-1,1705363200,17
-6,20260124,target,6,5,1,1,0,-1,-1,-1,1705363200,22
