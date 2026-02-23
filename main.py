@@ -10,12 +10,12 @@ import gen_sequence
 # parameter
 
 GLOBAL_CONFIG = {
-    'max_row': 6,
-    'max_bay': 11,
-    'max_level': 8,
-    'total_boxes': 400,
-    'mission_count': 50,
-    'agv_count': 10,
+    'max_row': 2,           #6
+    'max_bay': 2,          #11
+    'max_level': 2,         #8
+    'total_boxes': 6,
+    'mission_count': 6,   #50
+    'agv_count': 6,        #5
     'beam_width': 200,
     't_travel': 5.0,
     't_handle': 30.0,
@@ -25,7 +25,7 @@ GLOBAL_CONFIG = {
     'w_penalty_blocking': 2000.0,  
     'w_penalty_lookahead': 500.0,
     'workstation_count': 3,
-    'port_count': 5
+    'port_count': 2
 }
 
 def load_csv_data():
