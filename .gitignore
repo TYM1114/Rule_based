@@ -1,4 +1,4 @@
-# *.csv
+*.csv
 
 *.exe
 
@@ -15,3 +15,5 @@ generator
 
 .DS_Store
 Thumbs.db
+
+*.so
