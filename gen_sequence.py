@@ -18,7 +18,7 @@ def generate_sequence_with_config(cfg):
     
     box_pos = {}   # bid -> (r, b, t)
     stacks = {}    # (r, b) -> [bid, bid, ...]
-    workstation = (-1, -1)
+    workstation_count = cfg.get('workstation_count', 1)
     
     # 1. 讀取地圖
     with open('mock_yard.csv', 'r') as f:
@@ -56,8 +56,9 @@ def generate_sequence_with_config(cfg):
         # Ui: 解鎖收益 (下方壓住了多少個「也是目標」的箱子)
         ui = sum(1 for o in stacks[(r, b)] if o in target_set and box_pos[o][2] < t)
         
-        # Di: 到工作站的曼哈頓距離
-        di = abs(r - workstation[0]) + abs(b - workstation[1])
+        # Di: 到最近工作站的曼哈頓距離
+        # Workstations are at row -1, bays -1, -2, ..., -workstation_count
+        di = min(abs(r - (-1)) + abs(b - (-w)) for w in range(1, workstation_count + 1))
         
         # 綜合得分，分數越低優先權越高
         return (wbi * bi) - (wui * ui) + (wdi * di)
