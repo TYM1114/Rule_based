@@ -31,9 +31,9 @@ def generate_sequence_with_config(cfg):
     for col in stacks:
         stacks[col].sort(key=lambda x: box_pos[x][2])
 
-    # 2. 挑選目標箱並建立集合 (用於計算解鎖收益)
+    # 2. 挑選目標箱並建立集合 
     all_bids = list(box_pos.keys())
-    target_bids = random.sample(all_bids, mission_cnt)
+    target_bids = random.choices(all_bids, k=mission_cnt)
     target_set = set(target_bids)
     
     target_stacks = {}
@@ -45,7 +45,7 @@ def generate_sequence_with_config(cfg):
     for col in target_stacks:
         target_stacks[col].sort(key=lambda x: box_pos[x][2], reverse=True)
 
-    # 3. 新版 Rule-based 評分函式 (關鍵計算部分)
+    # 3. Rule-based 評分
     def get_score(tid):
         r, b, t = box_pos[tid]
         wbi, wui, wdi = [2.0, 5.0, 0.5]
@@ -63,7 +63,7 @@ def generate_sequence_with_config(cfg):
         # 綜合得分，分數越低優先權越高
         return (wbi * bi) - (wui * ui) + (wdi * di)
 
-    # 4. 根據評分貪婪選取最優序列
+    # 4. greedy 最優序列
     final_seq = []
     candidates = {col: s.pop(0) for col, s in target_stacks.items() if s}
 
@@ -77,7 +77,6 @@ def generate_sequence_with_config(cfg):
         else:
             del candidates[best_col]
 
-    # 5. 寫入指令檔 (保留原本的 SKU 隨機邏輯)
     with open('mock_commands.csv', 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(["cmd_no", "batch_id", "cmd_type", "cmd_priority", "parent_carrier_id", 
@@ -88,13 +87,15 @@ def generate_sequence_with_config(cfg):
         for i, tid in enumerate(final_seq):
             r, b, t = box_pos[tid]
             sku_qty = random.randint(1, 30)
-            writer.writerow([i+1, 20260124, "target", i+1, tid, r, b, t, -1, -1, -1, baseTime, sku_qty])
+            # New logic: Randomly assign a specific workstation
+            dest_workstation_id = random.randint(1, workstation_count)
+            writer.writerow([i+1, 20260124, "target", i+1, tid, r, b, t, -1, -dest_workstation_id, -1, baseTime, sku_qty])
             
     print(f"Sequence generated: {len(final_seq)} jobs with advanced rule-based scoring.")
     return final_seq
 
 def generate_sequence():
-    # 預設呼叫接口
+    
     return generate_sequence_with_config({'mission_count': 50})
 
 if __name__ == '__main__':

@@ -1,7 +1,5 @@
 import csv
 import time
-import bs_solver # Beam Search
-# import mcts_solver # Monte Carlo Tree Search
 import rb_solver # Rule_based
 import gen_yard
 import gen_sequence
@@ -13,9 +11,9 @@ GLOBAL_CONFIG = {
     'max_row': 2,           #6
     'max_bay': 2,          #11
     'max_level': 2,         #8
-    'total_boxes': 6,
-    'mission_count': 6,   #50
-    'agv_count': 6,        #5
+    'total_boxes': 7,
+    'mission_count': 8,   
+    'agv_count': 5,        #5
     'beam_width': 200,
     't_travel': 5.0,
     't_handle': 30.0,
@@ -89,26 +87,19 @@ def main():
     
     # job_sequence = [cmd['id'] for cmd in commands if cmd['type'] == 'target']
     
-    USE_RULE_BASED = True
-
+    target_dest_map = {}
+    for cmd in commands:
+        if cmd['type'] == 'target':
+            tid = cmd['id']
+            dest_bay = cmd['dest']['bay']
+            if tid not in target_dest_map:
+                target_dest_map[tid] = []
+            target_dest_map[tid].append(dest_bay)
     
-    if USE_RULE_BASED:
-        logs = rb_solver.run_rb_solver(GLOBAL_CONFIG, boxes, job_sequence, sku_map)
-    else :
-        bs_solver.set_config(
-            GLOBAL_CONFIG['t_travel'], 
-            GLOBAL_CONFIG['t_handle'], 
-            GLOBAL_CONFIG['t_process'],
-            GLOBAL_CONFIG['t_pick'],
-            GLOBAL_CONFIG['agv_count'], 
-            GLOBAL_CONFIG['beam_width'],
-            GLOBAL_CONFIG['sim_start_epoch'],
-            GLOBAL_CONFIG['w_penalty_blocking'], 
-            GLOBAL_CONFIG['w_penalty_lookahead'],
-            GLOBAL_CONFIG['port_count'],
-            GLOBAL_CONFIG['workstation_count']
-        )
-        logs = bs_solver.run_fixed_solver(GLOBAL_CONFIG, boxes, commands, job_sequence, sku_map)
+    # The job_sequence is now the unique list of containers to process
+    job_sequence = list(target_dest_map.keys())
+
+    logs = rb_solver.run_rb_solver(GLOBAL_CONFIG, boxes, job_sequence, sku_map, target_dest_map)
     
     # 5. 輸出任務日誌 (含相對秒數與 SKU 詳情)
     with open('output_missions_python.csv', 'w', newline='') as f:
