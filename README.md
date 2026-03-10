@@ -1,42 +1,6 @@
-# RB Solver (Rule-Based Operations Solver)
-
-此專案為專注於 **規則導向 (Rule-Based, RB)** 的倉儲作業最佳化引擎，主要負責管理懸吊式儲存系統中的 AGV 調度，包括出庫 (Target)、回庫 (Return)、翻箱 (Reshuffle) 與轉運 (Transfer) 任務。
-
----
 
 
-### 1. 編譯：
-```bash
-python setup.py build_ext --inplace
-```
-
-### 2. 執行模擬
-您可以手動指定任務批次 ID，或直接執行以讀取預設任務：
-```bash
-# 方式 A: 指定 ID
-python main.py 20260203174303
-
-# 方式 B: 執行後依提示輸入
-python main.py
-```
-
----
-
-##  物理規則與邏輯 (Physical Logic)
-
-
-1.  **底部存取**：AGV 僅能從最下方進行取箱或放箱。
-2.  **垂直阻擋 (Vertical Blocking)**：
-    *   **低層級 (Level 小) 阻擋高層級 (Level 大)**。
-    *   *範例*：要拿到頂層 Level 7 的箱子，必須先移走掛在同一個 Bay 下方 Level 0~6 的所有箱子。
-3.  **翻箱規則 (Reshuffle)**：
-    *   當發生阻擋時，系統會從該 Bay **最底層 (Level 0)** 的箱子開始搬移至其他可用儲位。
-4.  **掛載規則**：
-    *   箱子「由上往下」掛載。第一個箱子放在 Level 7，後續箱子依序掛在現有箱子的下方。
-
----
-
-## 三、 數據來源 (Data Sources)
+## 數據來源 (Data Sources)
 
 系統從 `DB/` 目錄下的 CSV 檔案讀取數據：
 *   **`cur_cmd_master.csv`**：定義任務 ID (`selection_run_id`) 與目標工作站。
@@ -49,7 +13,7 @@ python main.py
 
 ---
 
-## 四、 輸出結果說明
+## 輸出結果說明
 
 ### 1. 任務清單 (`output_missions_python.csv`)
 紀錄每台 AGV 的詳細動作，關鍵欄位如下：
