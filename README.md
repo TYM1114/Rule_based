@@ -4,56 +4,70 @@
 
 ---
 
-### 專案架構與橋接 (Cython Architecture)
-本系統採用 Cython 進行 C++ 核心與 Python 的橋接，並實作了 **定義與邏輯分離** 的維護架構，確保代碼的高效性與可擴展性：
+## 核心工作流與資料橋接 (Workflow & Data Bridge)
 
-- **`YardSystem.h` (C++)**: 核心物理引擎，定義系統的 3D 座標空間、阻擋判定與移動規則。
-- **`yard_system.pxd` (Cython Definition)**: 專屬的橋接定義檔，作為 Python 存取 C++ 的介面宣告。
-- **`rb_solver.pyx` (Cython Logic)**: 封裝任務調度的啟發式規則 (Heuristics)。透過 `cimport yard_system` 引入定義，專注於執行出庫、翻箱與回庫的邏輯運算。
-- **`main.py` (Python)**: 主控流程。負責從 CSV/DB 載入資料、呼叫 `rb_solver` 並輸出模擬結果。
+本系統採用「非同步資料交換」模式，透過 CSV 檔案作為資料庫與運算引擎之間的橋樑。開發者需遵循以下流程進行完整測試或執行：
+
+### 1. 資料同步 (DB -> CSV)
+系統使用 **`DB.py`** 搭配 **`models.py`** (SQLAlchemy) 從 PostgreSQL 抓取最新狀態。
+- **執行指令**：`python DB.py`
+- **橋接邏輯**：
+  - 從資料庫抓取：庫存 (`cur_inventory`)、儲位配置 (`cfg_location`)、任務主表 (`cur_cmd_master`) 與明細 (`cur_cmd_detail`)。
+  - **輸出路徑**：所有資料會轉存至 `DB/` 目錄下的 `.csv` 檔案。這些檔案是 RB Solver 的唯一輸入來源。
+
+### 2. 編譯核心 (Cython Build)
+由於核心邏輯使用 C++ 撰寫，每次修改 `YardSystem.h` 或 `rb_solver.pyx` 後必須重新編譯：
+- **編譯指令**：`python setup.py build_ext --inplace`
+- **結構說明**：
+  - `YardSystem.h`: 物理規則定義（3D 座標、垂直阻擋）。
+  - `yard_system.pxd`: Cython 介面宣告。
+  - `rb_solver.pyx`: 啟發式調度演算法實作。
+
+### 3. 序列優化與模擬 (Optimization & Simulation)
+透過 **`main.py`** 串接所有邏輯。
+- **多批次優化 (推薦)**：執行 `python main.py multi`。
+  1. 呼叫 `gen_sequence.py`：讀取 `DB/` 中的任務，進行跨批次序列重排以降低翻箱率，生成 `resequence.csv`。
+  2. 呼叫 `rb_solver`：根據優化後的序列，執行物理模擬。
+- **單一 ID 模式**：`python main.py [run_id]`。直接執行特定批次，不進行跨批次重排。
+
+### 4. 結果分析 (Output)
+- **輸出檔案**：`output_missions_python.csv`。
+- 包含所有 AGV 動作指令 (Target, Reshuffle, Return, Transfer) 及其對應的物理時間戳 (makespan)。
 
 ---
 
-### 1. 編譯：
+## 開發者接手指南 (Developer Guide)
+
+### 檔案維護說明
+- **修改物理規則 (如儲位層級、阻擋判定)**：修改 `YardSystem.h`。
+- **修改調度策略 (如 AGV 分配邏輯、回庫權重)**：修改 `rb_solver.pyx`。
+- **修改資料表欄位對應**：修改 `models.py` (資料庫層) 與 `main.py` (讀取層)。
+- **修改任務排序邏輯**：修改 `gen_sequence.py`。
+
+### 快速啟動指令 (完整流程)
 ```bash
+# 1. 同步資料庫資料
+python DB.py
+
+# 2. 編譯 C++ 核心
 python setup.py build_ext --inplace
-```
 
-### 2. 執行模擬
-
-您可以手動指定單一任務批次 ID，或使用 **多批次優化模式 (Multi-batch Optimization)** 進行序列重排：
-
-#### A. 多批次優化模式 (推薦)
-此模式會從 `cur_cmd_master.csv` 中抓取指定數量的連續批次，並進行懸吊式系統的任務優化排序。
-
-```bash
-# 基本用法：抓取前 10 個批次並優化
+# 3. 執行多批次優化模擬 (預設抓取前 10 個批次)
 python main.py multi
-
-# 進階用法：從指定 ID 開始，抓取後續共 n 個批次 (包含起始 ID)
-# python main.py multi [批次數量] [起始 ID]
-python main.py multi 10 run_20240310_01
-```
-*   **ID 處理**：支援任何字串格式的 `selection_run_id`。
-*   **邏輯**：程式會根據 CSV 中的物理順序，收集從「起始 ID」開始的 $n$ 個唯一 ID。
-
-#### B. 單一 ID 模式
-直接執行特定批次 ID 的模擬：
-```bash
-python main.py [run_id]
 ```
 
-#### C. 手動重排 (不執行模擬)
-如果您只想生成優化後的 `resequence.csv`：
-```bash
-# python gen_sequence.py [批次數量] [起始 ID]
-python gen_sequence.py 5 run_abc_123
-```
+### 進階執行參數
+- **指定批次數量與起始點**：
+  `python main.py multi [批次數量] [起始批次ID]`
+  *範例：* `python main.py multi 5 run_20240310_01`
+
+- **僅執行序列優化 (不進行模擬)**：
+  `python gen_sequence.py [數量] [起始ID]`
 
 ---
 
-### 3. 輸出紀錄
-執行結束後，系統會生成 `output_missions_python.csv`，其中包含：
-- **mission_type**: target (出庫), reshuffle (翻箱), return (回庫), transfer (轉運)。
-- **makespan**: 總完工時間 (秒)。
-- **src_pos / dst_pos**: 物理座標或工作站編號。
+## 依賴環境 (Environment)
+- Python 3.8+
+- Cython, NumPy, Pandas
+- SQLAlchemy, Psycopg2 (用於 DB 連線)
+- C++ 編譯器 (gcc/clang)
