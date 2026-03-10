@@ -6,7 +6,16 @@ import pandas as pd
 class BaseMixin:
     @classmethod
     def export_to_csv(cls, session, filename=None):
-        results = session.query(cls).all()
+        query = session.query(cls)
+        # 如果有 selection_run_id 則以此排序，否則以 primary key 或 cmd_id 排序
+        if hasattr(cls, 'selection_run_id'):
+            query = query.order_by(cls.selection_run_id)
+        elif hasattr(cls, 'cmd_id'):
+            query = query.order_by(cls.cmd_id)
+        elif hasattr(cls, 'order_no'):
+            query = query.order_by(cls.order_no)
+            
+        results = query.all()
         data = [
             {c.name: getattr(row, c.name) for c in cls.__table__.columns}
             for row in results
@@ -14,7 +23,7 @@ class BaseMixin:
         
         df = pd.DataFrame(data)
         file_name = filename or f"{cls.__tablename__}.csv"
-        df.to_csv(file_name, index=False, encoding="utf-8-sig")
+        df.to_csv(f"DB/{file_name}", index=False, encoding="utf-8-sig")
         print(f"export to csv success：{file_name}")
 
 
@@ -63,10 +72,47 @@ class CurCmdMaster(Base):
     order_scenario = Column(String)
     inv_scenario = Column(String)
     selection_algo_ver = Column(String)
-    selection_run_id = Column(String)
+    selection_run_id = Column(String, primary_key=True) # Added as PK for query if needed
     batch_time_window = Column(Integer)
     batch_algo_ver = Column(String)
 
+class CurCmdDetail(Base):
+    __tablename__ = 'cur_cmd_detail'
+    __table_args__ = {'schema': 'dev'}
+    
+    cmd_id = Column(Integer, primary_key=True)
+    order_line_id = Column(String, primary_key=True)
+    carrier_id = Column(String,  primary_key=True)
+    quantity = Column(Integer)
+    create_user = Column(String)
+    create_time = Column(DateTime)
+    update_user = Column(String)
+    update_time = Column(DateTime)
 
+class CurOrderMaster(Base):
+    __tablename__ = 'cur_order_master'
+    __table_args__ = {'schema': 'dev'}
+    
+    order_no = Column(String, primary_key=True)
+    order_date = Column(DateTime)
+    put_wall_group = Column(String)
+    create_user = Column(String)
+    create_time = Column(DateTime)
+    update_user = Column(String)
+    update_time = Column(DateTime)
+    original_order_no = Column(String)
+    scenario = Column(String, primary_key=True)
 
-
+class CurOrderDetail(Base):
+    __tablename__ = 'cur_order_detail'
+    __table_args__ = {'schema': 'dev'}
+    
+    order_line_id = Column(String, primary_key=True)
+    order_no = Column(String, primary_key=True)
+    material_id = Column(String)
+    quantity = Column(Integer)
+    dest_position = Column(String)
+    dest_storage_id = Column(String)
+    update_user = Column(String)
+    update_time = Column(DateTime)
+    scenario = Column(String, primary_key=True)

@@ -4,42 +4,7 @@
 from libcpp.vector cimport vector
 from libcpp.unordered_map cimport unordered_map
 from libc.math cimport abs
-
-cdef extern from "YardSystem.h":
-    """
-    #ifndef COORDINATE_DEFINED
-    #define COORDINATE_DEFINED
-    #include "YardSystem.h"
-    struct Agent {
-        int id;
-        Coordinate currentPos;
-        double availableTime;
-    };
-    #endif
-    """
-    struct Coordinate:
-        int row
-        int bay
-        int tier
-    struct Agent:
-        int id
-        Coordinate currentPos
-        double availableTime
-
-cdef extern from "YardSystem.h":
-    cppclass YardSystem:
-        YardSystem() nogil
-        YardSystem(int rows, int bays, int tiers, int totalBoxes) nogil
-        void initBox(int boxId, int r, int b, int t) nogil
-        void moveBox(int r1, int b1, int r2, int b2) nogil
-        void removeBox(int id) nogil
-        Coordinate getBoxPosition(int id) nogil
-        bint isTop(int id) nogil
-        vector[int] getBlockingBoxes(int id) nogil
-        bint canReceiveBox(int r, int b) nogil
-        int MAX_ROWS, MAX_BAYS, MAX_TIERS
-        vector[vector[vector[int]]] grid
-        vector[vector[int]] nextAvailableTier
+from yard_system cimport YardSystem, Coordinate, Agent
 
 cdef class PyMissionLog:
     cdef public int mission_no, agv_id, container_id, related_target_id
@@ -91,7 +56,8 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map, dict tar
     cdef double t_handle = config['t_handle']
     cdef double t_process = config['t_process']
     cdef double t_pick = config['t_pick']
-    cdef long long sim_start = config['sim_start_epoch']
+    long_long_start_time = config['sim_start_epoch']
+    cdef long long sim_start = long_long_start_time
 
     cdef unordered_map[int, double] containerAvailableTime 
     cdef vector[vector[double]] portBusyTime

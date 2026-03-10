@@ -13,35 +13,38 @@ def parse_carrier_id(car_id):
     clean_id = ''.join(filter(str.isdigit, car_id))
     return int(clean_id) + 1 if clean_id else 0
 
-def generate_optimized_sequence(num_batches=10):
-    print(f"--- Generating Optimized Sequence from {num_batches} random batches ---")
+def generate_optimized_sequence(num_batches=10, start_id=None):
+    print(f"--- Generating Optimized Sequence (Count: {num_batches}, Start ID: {start_id or 'Minimum'}) ---")
     
-    # 1. 獲取所有可用的 Run IDs
-    all_ids = []
-    try:
-        with open('DB/cur_cmd_master.csv', 'r', encoding='utf-8-sig') as f:
-            reader = csv.DictReader(f)
-            all_ids = list(set(row['selection_run_id'] for row in reader))
-    except FileNotFoundError:
-        print("Error: DB/cur_cmd_master.csv not found.")
-        return
-
-    if not all_ids:
-        print("Error: No Run IDs found.")
-        return
-
-    selected_ids = random.sample(all_ids, min(num_batches, len(all_ids)))
-    print(f"Selected Batches: {selected_ids}")
-
-    # 2. 獲取場景與任務池
+    # 1. 使用一次性線性掃描獲取需要的資料
+    selected_ids = []
     inv_scenario = ""
     all_target_dest_map = {} # parent_id -> [dest_bays]
     cmd_info_map = {}        # parent_id -> {cmd_id, batch_id, ...}
     
-    with open('DB/cur_cmd_master.csv', 'r', encoding='utf-8-sig') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row['selection_run_id'] in selected_ids:
+    csv_source = 'DB/cur_cmd_master.csv'
+    try:
+        with open(csv_source, 'r', encoding='utf-8-sig') as f:
+            reader = csv.DictReader(f)
+            start_collecting = (start_id is None)
+            
+            for row in reader:
+                current_run_id = row['selection_run_id']
+                
+                # 判定起始位置
+                if not start_collecting:
+                    if current_run_id == start_id:
+                        start_collecting = True
+                    else:
+                        continue
+                
+                # 判定是否需要加入此批次
+                if current_run_id not in selected_ids:
+                    if len(selected_ids) >= num_batches:
+                        break # 已收集足夠數量且碰到下一個 ID
+                    selected_ids.append(current_run_id)
+                
+                # 收集資料
                 if not inv_scenario: inv_scenario = row['inv_scenario']
                 p_id = parse_carrier_id(row['parent_carrier_id'])
                 if p_id == 0: continue
@@ -53,8 +56,18 @@ def generate_optimized_sequence(num_batches=10):
                     all_target_dest_map[p_id] = []
                     cmd_info_map[p_id] = row
                 all_target_dest_map[p_id].append(dest_bay)
+                
+    except FileNotFoundError:
+        print(f"Error: {csv_source} not found.")
+        return None, None
 
-    # 3. 讀取庫存與映射
+    if not selected_ids:
+        print("Error: No IDs collected.")
+        return None, None
+
+    print(f"Collected Batches: {selected_ids}")
+
+    # 3. 讀取庫存與映射 (此處暫時維持原樣，但因 target_set 已縮小，效能會變好)
     carrier_to_parent = {}
     with open('DB/cur_carrier.csv', 'r', encoding='utf-8-sig') as f:
         reader = csv.DictReader(f)
@@ -85,19 +98,15 @@ def generate_optimized_sequence(num_batches=10):
     for col in target_stacks:
         target_stacks[col].sort(key=lambda x: box_pos[x][2]) # 從 Level 小 (底部) 開始
 
-    # 4. 懸吊系統評分邏輯
+    # 4. 懸吊系統評分邏輯 (Greedy 排序)
     def get_score(tid):
         r, b, l = box_pos[tid]
         wbi, wui, wdi = [2.0, 5.0, 0.5]
-        # Bi: 下方阻擋 (Level < l)
         bi = sum(1 for o in stacks[(r, b)] if box_pos[o][2] < l)
-        # Ui: 上方解鎖 (Level > l 且是目標)
         ui = sum(1 for o in stacks[(r, b)] if o in target_set and box_pos[o][2] > l)
-        # Di: 距離 (假設工作站在 Row -1, Bay -1/-2/-3)
         di = min(abs(r - (-1)) + abs(b - (-(w+1))) for w in range(3))
         return (wbi * bi) - (wui * ui) + (wdi * di)
 
-    # 5. Greedy 排序
     final_seq = []
     candidates = {col: s.pop(0) for col, s in target_stacks.items() if s}
 
@@ -113,7 +122,6 @@ def generate_optimized_sequence(num_batches=10):
     # 6. 寫入結果
     output_file = 'resequence.csv'
     with open(output_file, 'w', newline='', encoding='utf-8-sig') as f:
-        # 保持與 cur_cmd_master.csv 相同的格式
         fieldnames = ["selection_run_id", "inv_scenario", "parent_carrier_id", "dest_position", "cmd_id"]
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
@@ -134,7 +142,10 @@ def generate_optimized_sequence(num_batches=10):
 
 
 if __name__ == '__main__':
-    n = 10
+    count = 10
+    start = None
     if len(sys.argv) > 1:
-        n = int(sys.argv[1])
-    generate_optimized_sequence(n)
+        count = int(sys.argv[1])
+    if len(sys.argv) > 2:
+        start = sys.argv[2]
+    generate_optimized_sequence(count, start)

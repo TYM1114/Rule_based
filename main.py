@@ -92,7 +92,10 @@ def load_data_v4(run_id):
 def main():
     test_run_id = ""
     if len(sys.argv) > 1:
-        if sys.argv[1] == "multi": _, test_run_id = gen_sequence.generate_optimized_sequence(10)
+        if sys.argv[1] == "multi":
+            count = int(sys.argv[2]) if len(sys.argv) > 2 else 10
+            start_id = sys.argv[3] if len(sys.argv) > 3 else None
+            _, test_run_id = gen_sequence.generate_optimized_sequence(count, start_id)
         else: test_run_id = sys.argv[1]
     if not test_run_id:
         user_input = input("Enter selection_run_id (or type 'multi'): ").strip()
