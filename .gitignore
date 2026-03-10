@@ -1,5 +1,6 @@
 # *.csv
-
+__pycache__
+build
 *.exe
 
 solver

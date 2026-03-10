@@ -5,7 +5,6 @@
 #include <iostream>
 #include <algorithm>
 
-// 座標結構
 struct Coordinate {
     int row; // x
     int bay; // y
@@ -17,120 +16,124 @@ struct Coordinate {
 };
 
 class YardSystem {
-public: // <--- [關鍵修改] 將所有成員變數移到 public，讓 main.cpp 可以直接存取
-    
-    // 資料結構 1: 3D Matrix (空間查箱子)
+public:
     std::vector<std::vector<std::vector<int>>> grid;
-
-    // 資料結構 2: Lookup Table (箱子查空間)
     std::vector<Coordinate> boxLocations;
+    std::vector<std::vector<int>> nextAvailableTier; // 下一個可以放箱子的層級 (懸吊系統：最下方箱子的下面)
 
-    // 輔助結構: 每個柱子目前的高度 (Top Cache)
-    std::vector<std::vector<int>> tops;
-
-    // 環境參數
     int MAX_ROWS;
     int MAX_BAYS;
     int MAX_TIERS;
 
-    // [必要] 預設建構子 (為了解決 vector resize 錯誤)
     YardSystem() : MAX_ROWS(0), MAX_BAYS(0), MAX_TIERS(0) {}
 
-    // 主要建構子
     YardSystem(int rows, int bays, int tiers, int totalBoxes) 
         : MAX_ROWS(rows), MAX_BAYS(bays), MAX_TIERS(tiers) {
         
-        // 初始化 Matrix (全為 0)
-        grid.resize(rows, std::vector<std::vector<int>>(bays, std::vector<int>(tiers, 0)));
-        
-        // 初始化 Lookup Table (預留空間)
-        boxLocations.resize(totalBoxes + 1, {-1, -1, -1}); 
-        
-        // 初始化高度表
-        tops.resize(rows, std::vector<int>(bays, 0));
+        grid.assign(rows, std::vector<std::vector<int>>(bays, std::vector<int>(tiers, 0)));
+        nextAvailableTier.assign(rows, std::vector<int>(bays, tiers - 1));
+        boxLocations.assign(totalBoxes + 10, {-1, -1, -1});
     }
 
-    // 1. 初始化放置箱子
+    void updateNextAvailable(int r, int b) {
+        if (r < 0 || r >= MAX_ROWS || b < 0 || b >= MAX_BAYS) return;
+        // 從底部(0)向上找第一個有箱子的位置
+        for (int t = 0; t < MAX_TIERS; ++t) {
+            if (grid[r][b][t] > 0) {
+                nextAvailableTier[r][b] = t - 1; // 下一個箱子放它下面
+                return;
+            }
+        }
+        nextAvailableTier[r][b] = MAX_TIERS - 1; // 如果全空，從頂部(7)開始掛
+    }
+
     void initBox(int boxId, int r, int b, int t) {
-        if (r >= MAX_ROWS || b >= MAX_BAYS || t >= MAX_TIERS) return;
+        if (r < 0 || r >= MAX_ROWS || b < 0 || b >= MAX_BAYS || t < 0 || t >= MAX_TIERS) return;
+        if (boxId <= 0 || boxId >= (int)boxLocations.size()) return;
 
         grid[r][b][t] = boxId;
         boxLocations[boxId] = {r, b, t};
-        
-        if (t + 1 > tops[r][b]) {
-            tops[r][b] = t + 1;
-        }
+        updateNextAvailable(r, b);
     }
 
-    // 2. 移動箱子
+    // 懸吊系統的 moveBox：移走最下方的箱子，放到另一個 Bay 的最下方
     bool moveBox(int fromRow, int fromBay, int toRow, int toBay) {
-        if (tops[fromRow][fromBay] == 0) return false;
-        if (tops[toRow][toBay] >= MAX_TIERS) return false;
+        if (fromRow < 0 || fromRow >= MAX_ROWS || fromBay < 0 || fromBay >= MAX_BAYS) return false;
+        if (toRow < 0 || toRow >= MAX_ROWS || toBay < 0 || toBay >= MAX_BAYS) return false;
+        
+        // 找到來源 Bay 最下方的箱子 (即 t = nextAvailableTier + 1)
+        int currentTier = -1;
+        for (int t = 0; t < MAX_TIERS; ++t) {
+            if (grid[fromRow][fromBay][t] > 0) {
+                currentTier = t;
+                break;
+            }
+        }
+        if (currentTier == -1) return false;
 
-        int currentTier = tops[fromRow][fromBay] - 1; 
         int boxId = grid[fromRow][fromBay][currentTier];
-        int targetTier = tops[toRow][toBay];
+        int targetTier = nextAvailableTier[toRow][toBay];
+        
+        if (targetTier < 0) return false; // 目標 Bay 已滿(到底了)
 
-        // 更新 Matrix
+        // 執行移動
         grid[fromRow][fromBay][currentTier] = 0; 
         grid[toRow][toBay][targetTier] = boxId; 
-
-        // 更新 Lookup Table
         boxLocations[boxId] = {toRow, toBay, targetTier};
 
-        // 更新高度緩存
-        tops[fromRow][fromBay]--;
-        tops[toRow][toBay]++;
+        updateNextAvailable(fromRow, fromBay);
+        updateNextAvailable(toRow, toBay);
 
         return true;
     }
 
-    // 3. 取出箱子
     void removeBox(int boxId) {
-        if (boxId >= boxLocations.size()) return;
+        if (boxId <= 0 || boxId >= (int)boxLocations.size()) return;
         Coordinate pos = boxLocations[boxId];
-        if (pos.row == -1) return;
+        if (pos.row < 0) return;
 
-        if (pos.tier == tops[pos.row][pos.bay] - 1) {
-            grid[pos.row][pos.bay][pos.tier] = 0;
-            tops[pos.row][pos.bay]--;
-            boxLocations[boxId] = {-1, -1, -1}; 
-        }
+        grid[pos.row][pos.bay][pos.tier] = 0;
+        boxLocations[boxId] = {-1, -1, -1}; 
+        updateNextAvailable(pos.row, pos.bay);
     }
 
-    // --- 查詢 API ---
-
     Coordinate getBoxPosition(int boxId) const {
-        if (boxId >= boxLocations.size()) return {-1, -1, -1};
+        if (boxId <= 0 || boxId >= (int)boxLocations.size()) return {-1, -1, -1};
         return boxLocations[boxId];
     }
 
+    // 阻擋判定：在懸吊系統中，下方(Level較小)的箱子阻擋了上方(Level較大)的箱子
     std::vector<int> getBlockingBoxes(int boxId) const {
         std::vector<int> blockers;
-        if (boxId >= boxLocations.size()) return blockers;
-        
+        if (boxId <= 0 || boxId >= (int)boxLocations.size()) return blockers;
         Coordinate pos = boxLocations[boxId];
-        if (pos.row == -1) return blockers; 
+        if (pos.row < 0) return blockers;
 
-        int topTier = tops[pos.row][pos.bay];
-        for (int t = pos.tier + 1; t < topTier; ++t) {
-            blockers.push_back(grid[pos.row][pos.bay][t]);
+        // AGV 從下面來，所以 0 ... pos.tier-1 是阻擋物
+        for (int t = 0; t < pos.tier; ++t) {
+            int b_id = grid[pos.row][pos.bay][t];
+            if (b_id > 0) blockers.push_back(b_id);
         }
-        return blockers;
+        // 注意：為了 Reshuffle 邏輯，順序應該是從最下面開始移，所以要 reverse 或保持 0->tier 順序
+        return blockers; 
     }
 
     bool canReceiveBox(int r, int b) const {
         if (r < 0 || r >= MAX_ROWS || b < 0 || b >= MAX_BAYS) return false;
-        return tops[r][b] < MAX_TIERS;
+        return nextAvailableTier[r][b] >= 0;
     }
 
     bool isTop(int boxId) const {
-        if (boxId >= boxLocations.size()) return false;
+        if (boxId <= 0) return true;
         Coordinate pos = boxLocations[boxId];
-        if (pos.row == -1) return true; // 視為已取出
+        if (pos.row < 0) return true; 
 
-        return pos.tier == (tops[pos.row][pos.bay] - 1);
+        // 檢查下方是否有任何箱子
+        for (int t = 0; t < pos.tier; ++t) {
+            if (grid[pos.row][pos.bay][t] > 0) return false;
+        }
+        return true;
     }
 };
 
-#endif // YARDSYSTEM_H
+#endif
