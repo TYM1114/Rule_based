@@ -1,20 +1,20 @@
-# *.csv
-__pycache__
-build
-*.exe
+# Python temporary files
+__pycache__/
+*.py[cod]
+*$py.class
 
-solver
-generator
-*.out
-
-*.o
-*.obj
-
-.vscode/
-.idea/
-*.swp
-
-.DS_Store
-Thumbs.db
-
+# Cython / C++ compilation products
+build/
 *.so
+rb_solver.cpp
+
+# Simulation outputs
+output_missions_python.csv
+
+# Project specific ignores (Requested)
+GEMINI.md
+
+# System/IDE files
+.DS_Store
+.vscode/
+.env
