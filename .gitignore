@@ -9,7 +9,7 @@ build/
 rb_solver.cpp
 
 # Simulation outputs
-output_missions_python.csv
+# output_missions_python.csv
 
 # Project specific ignores (Requested)
 GEMINI.md

@@ -43,7 +43,7 @@ cdef extern from "YardSystem.h":
 
 cdef class PyMissionLog:
     cdef public int mission_no, agv_id, container_id, related_target_id
-    cdef public str mission_type
+    cdef public str mission_type, duration_detail
     cdef public tuple src, dst
     cdef public long long start_time, end_time
     cdef public double makespan
@@ -53,6 +53,7 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map, dict tar
     cdef int box_id, target_count, path_length, tier_idx, min_target_count_so_far, min_path_so_far
     cdef double minPenalty, bestFinish, bestStart, start, finish, arrivalAtPort, processStart, portFinish, penalty, current_pickup_end
     cdef double best_return_finish, best_return_start, temp_finish_time, container_ready_time, travel_to_port, pickup_start, pickup_end, arrival_at_dst, dropoff_start, best_return_pickup_start
+    cdef double best_dropoff_start, best_process_start, best_pickup_end
     cdef unordered_map[int, bint] remaining_targets_map
     cdef list potential_slots, best_class_slots
     cdef dict best_slot
@@ -150,6 +151,9 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map, dict tar
             bestFinish = 1e18
             bestAgvIdx = -1
             bestStart = 0.0
+            bestPickupStart = 0.0
+            bestPickupEnd = 0.0
+            bestDropoffStart = 0.0
             pickupTime = 0.0
             for a in range(agvCount):
                 # 1. 提前出發時間
@@ -165,6 +169,9 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map, dict tar
             
                 if finish < bestFinish:
                     bestFinish = finish; bestAgvIdx = a; bestStart = start_move
+                    bestPickupStart = pickup_start
+                    bestPickupEnd = pickup_end
+                    bestDropoffStart = dropoff_start
                     pickupTime = pickup_end # 箱子離開貨架的時刻 
 
             if bestDst_coord.row != -1 and bestAgvIdx != -1:
@@ -179,7 +186,8 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map, dict tar
                 pl.mission_no = len(py_logs) + 1; pl.agv_id = bestAgvIdx; pl.mission_type = "reshuffle"
                 pl.container_id = blockerId; pl.related_target_id = targetId
                 pl.src = (src_coord.row, src_coord.bay, src_coord.tier); pl.dst = (bestDst_coord.row, bestDst_coord.bay, bestDst_coord.tier)
-                pl.start_time = <long long>(bestStart + sim_start); pl.end_time = <long long>(bestFinish + sim_start); pl.makespan = bestFinish
+                pl.start_time = <long long>(bestPickupStart + sim_start); pl.end_time = <long long>(bestFinish + sim_start); pl.makespan = bestFinish
+                pl.duration_detail = f"{t_handle} + {bestDropoffStart - bestPickupEnd} + {t_handle}"
                 py_logs.append(pl)
             else:
                 # 找不到儲位或 AGV，跳出當前目標的 Reshuffle
@@ -197,6 +205,9 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map, dict tar
         bestPort = -1
         bestAgvIdx = -1
         bestStart = 0.0
+        bestPickupStart = 0.0
+        bestPickupEnd = 0.0
+        bestDropoffStart = 0.0
         bestWorkstation = -1
         current_pickup_end = 0.0
 
@@ -226,6 +237,9 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map, dict tar
                     bestWorkstation = workstation_bay
                     bestPort = p
                     bestStart = start_move
+                    bestPickupStart = pickup_start
+                    bestPickupEnd = pickup_end
+                    bestDropoffStart = processStart
                     final_pickupTime = finish_dropoff # End_s = 140
                     current_pickup_end = pickup_end # 80s
 
@@ -240,9 +254,10 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map, dict tar
         pl.mission_no = len(py_logs) + 1; pl.agv_id = bestAgvIdx; pl.mission_type = "target"
         pl.container_id = targetId; pl.related_target_id = targetId
         pl.src = (src_coord.row, src_coord.bay, src_coord.tier); pl.dst = (-1, bestWorkstation, bestPort)
-        pl.start_time = <long long>(bestStart + sim_start)
-        pl.end_time = <long long>(final_pickupTime + sim_start)
-        pl.makespan = final_pickupTime
+        pl.start_time = <long long>(bestPickupStart + sim_start)
+        pl.end_time = <long long>(final_pickupTime + t_process + sim_start)
+        pl.makespan = final_pickupTime + t_process
+        pl.duration_detail = f"{t_handle} + {bestDropoffStart - bestPickupEnd} + {t_handle} + {t_process}"
         py_logs.append(pl)
 
         # New Phase 3: Dynamic Return/Transfer Logic
@@ -275,6 +290,9 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map, dict tar
                     best_return_finish = 1e18
                     best_return_agv_idx = -1
                     best_return_start = 0.0
+                    best_transfer_pickup_start = 0.0
+                    best_transfer_pickup_end = 0.0
+                    best_transfer_dropoff_start = 0.0
 
                     container_ready_time = portBusyTime[best_w_id][bestPort]
 
@@ -293,6 +311,9 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map, dict tar
                             best_return_finish = temp_finish_time
                             best_return_agv_idx = a
                             best_return_start = pickup_start - travel_to_port
+                            best_transfer_pickup_start = pickup_start
+                            best_transfer_pickup_end = pickup_end
+                            best_transfer_dropoff_start = dropoff_start
 
                     # Update state for transfer
                     if best_return_agv_idx != -1:
@@ -308,9 +329,10 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map, dict tar
                         pl.related_target_id = targetId
                         pl.src = (current_pos_ws.row, current_pos_ws.bay, current_pos_ws.tier)
                         pl.dst = (-1, next_dest_bay, best_free_port)
-                        pl.start_time = <long long>(best_return_start + sim_start)
+                        pl.start_time = <long long>(best_transfer_pickup_start + sim_start)
                         pl.end_time = <long long>(best_return_finish + sim_start)
                         pl.makespan = best_return_finish
+                        pl.duration_detail = f"{t_handle} + {best_transfer_dropoff_start - best_transfer_pickup_end} + {t_handle}"
                         py_logs.append(pl)
 
                         # Update current state for the next iteration of the inner loop
@@ -360,6 +382,7 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map, dict tar
 
                 if bestDst_coord.row != -1:
                     best_return_finish = 1e18; best_return_agv_idx = -1; best_return_start = 0.0; best_return_pickup_start = 0.0
+                    best_return_pickup_end = 0.0; best_return_dropoff_start = 0.0
                     container_ready_time = portBusyTime[best_w_id][bestPort]
                     for a in range(agvCount):
                         travel_to_port = (abs(agvs[a].currentPos.row - current_pos_ws.row) + abs(agvs[a].currentPos.bay - current_pos_ws.bay)) * t_travel
@@ -373,6 +396,7 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map, dict tar
                         if temp_finish_time < best_return_finish:
                             best_return_finish = temp_finish_time; best_return_agv_idx = a
                             best_return_start = pickup_start - travel_to_port; best_return_pickup_start = pickup_start
+                            best_return_pickup_end = pickup_end; best_return_dropoff_start = dropoff_start
                     
                     if best_return_agv_idx != -1:
                         yard.initBox(targetId, bestDst_coord.row, bestDst_coord.bay, bestDst_coord.tier)
@@ -387,6 +411,7 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map, dict tar
                         pl.dst = (bestDst_coord.row, bestDst_coord.bay, bestDst_coord.tier)
                         pl.start_time = <long long>(best_return_pickup_start + sim_start); pl.end_time = <long long>(best_return_finish + sim_start)
                         pl.makespan = best_return_finish
+                        pl.duration_detail = f"{t_handle} + {best_return_dropoff_start - best_return_pickup_end} + {t_handle}"
                         py_logs.append(pl)
         
         i += 1
