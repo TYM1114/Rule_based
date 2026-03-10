@@ -7,13 +7,13 @@ class BaseMixin:
     @classmethod
     def export_to_csv(cls, session, filename=None):
         query = session.query(cls)
-        # 如果有 selection_run_id 則以此排序，否則以 primary key 或 cmd_id 排序
+        # 以selection_run_id 排序
         if hasattr(cls, 'selection_run_id'):
             query = query.order_by(cls.selection_run_id)
-        elif hasattr(cls, 'cmd_id'):
-            query = query.order_by(cls.cmd_id)
-        elif hasattr(cls, 'order_no'):
-            query = query.order_by(cls.order_no)
+        # elif hasattr(cls, 'cmd_id'):
+        #     query = query.order_by(cls.cmd_id)
+        # elif hasattr(cls, 'order_no'):
+        #     query = query.order_by(cls.order_no)
             
         results = query.all()
         data = [
@@ -72,7 +72,7 @@ class CurCmdMaster(Base):
     order_scenario = Column(String)
     inv_scenario = Column(String)
     selection_algo_ver = Column(String)
-    selection_run_id = Column(String, primary_key=True) # Added as PK for query if needed
+    selection_run_id = Column(String, primary_key=True) 
     batch_time_window = Column(Integer)
     batch_algo_ver = Column(String)
 

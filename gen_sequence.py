@@ -1,7 +1,7 @@
 import csv
-import random
 import sys
 import os
+from datetime import datetime, timedelta
 
 # --- Parsing Tools ---
 def parse_location_id(loc_id):
@@ -16,11 +16,10 @@ def parse_carrier_id(car_id):
 def generate_optimized_sequence(num_batches=10, start_id=None):
     print(f"--- Generating Optimized Sequence (Count: {num_batches}, Start ID: {start_id or 'Minimum'}) ---")
     
-    # 1. 使用一次性線性掃描獲取需要的資料
     selected_ids = []
     inv_scenario = ""
-    all_target_dest_map = {} # parent_id -> [dest_bays]
-    cmd_info_map = {}        # parent_id -> {cmd_id, batch_id, ...}
+    all_target_dest_map = {} 
+    cmd_info_map = {}        
     
     csv_source = 'DB/cur_cmd_master.csv'
     try:
@@ -30,21 +29,14 @@ def generate_optimized_sequence(num_batches=10, start_id=None):
             
             for row in reader:
                 current_run_id = row['selection_run_id']
-                
-                # 判定起始位置
                 if not start_collecting:
-                    if current_run_id == start_id:
-                        start_collecting = True
-                    else:
-                        continue
+                    if current_run_id == start_id: start_collecting = True
+                    else: continue
                 
-                # 判定是否需要加入此批次
                 if current_run_id not in selected_ids:
-                    if len(selected_ids) >= num_batches:
-                        break # 已收集足夠數量且碰到下一個 ID
+                    if len(selected_ids) >= num_batches: break
                     selected_ids.append(current_run_id)
                 
-                # 收集資料
                 if not inv_scenario: inv_scenario = row['inv_scenario']
                 p_id = parse_carrier_id(row['parent_carrier_id'])
                 if p_id == 0: continue
@@ -67,15 +59,14 @@ def generate_optimized_sequence(num_batches=10, start_id=None):
 
     print(f"Collected Batches: {selected_ids}")
 
-    # 3. 讀取庫存與映射 (此處暫時維持原樣，但因 target_set 已縮小，效能會變好)
+    # 3. 讀取庫存與映射
     carrier_to_parent = {}
     with open('DB/cur_carrier.csv', 'r', encoding='utf-8-sig') as f:
         reader = csv.DictReader(f)
         for row in reader:
             carrier_to_parent[row['carrier_id']] = parse_carrier_id(row['parent_carrier_id'])
 
-    box_pos = {} # id -> (r, b, l)
-    stacks = {}  # (r, b) -> [ids sorted by level 0..7]
+    box_pos, stacks = {}, {}
     with open('DB/cur_inventory.csv', 'r', encoding='utf-8-sig') as f:
         reader = csv.DictReader(f)
         for row in reader:
@@ -86,8 +77,7 @@ def generate_optimized_sequence(num_batches=10, start_id=None):
                     box_pos[p_id] = (r, b, l)
                     stacks.setdefault((r, b), []).append(p_id)
     
-    for col in stacks:
-        stacks[col].sort(key=lambda x: box_pos[x][2])
+    for col in stacks: stacks[col].sort(key=lambda x: box_pos[x][2])
 
     target_set = set(all_target_dest_map.keys())
     target_stacks = {}
@@ -95,42 +85,41 @@ def generate_optimized_sequence(num_batches=10, start_id=None):
         if tid in box_pos:
             col = (box_pos[tid][0], box_pos[tid][1])
             target_stacks.setdefault(col, []).append(tid)
-    for col in target_stacks:
-        target_stacks[col].sort(key=lambda x: box_pos[x][2]) # 從 Level 小 (底部) 開始
+    for col in target_stacks: target_stacks[col].sort(key=lambda x: box_pos[x][2])
 
     # 4. 懸吊系統評分邏輯 (Greedy 排序)
     def get_score(tid):
         r, b, l = box_pos[tid]
-        wbi, wui, wdi = [2.0, 5.0, 0.5]
         bi = sum(1 for o in stacks[(r, b)] if box_pos[o][2] < l)
         ui = sum(1 for o in stacks[(r, b)] if o in target_set and box_pos[o][2] > l)
         di = min(abs(r - (-1)) + abs(b - (-(w+1))) for w in range(3))
-        return (wbi * bi) - (wui * ui) + (wdi * di)
+        return (2.0 * bi) - (5.0 * ui) + (0.5 * di)
 
-    final_seq = []
-    candidates = {col: s.pop(0) for col, s in target_stacks.items() if s}
+    final_seq, candidates = [], {col: s.pop(0) for col, s in target_stacks.items() if s}
 
     while candidates:
         best_tid = min(candidates.values(), key=get_score)
         final_seq.append(best_tid)
         best_col = (box_pos[best_tid][0], box_pos[best_tid][1])
-        if target_stacks.get(best_col):
-            candidates[best_col] = target_stacks[best_col].pop(0)
-        else:
-            del candidates[best_col]
+        if target_stacks.get(best_col): candidates[best_col] = target_stacks[best_col].pop(0)
+        else: del candidates[best_col]
 
     # 6. 寫入結果
     output_file = 'resequence.csv'
     with open(output_file, 'w', newline='', encoding='utf-8-sig') as f:
-        fieldnames = ["selection_run_id", "inv_scenario", "parent_carrier_id", "dest_position", "cmd_id"]
+        # 新增 original_run_id 欄位
+        fieldnames = ["selection_run_id", "original_run_id", "inv_scenario", "parent_carrier_id", "dest_position", "cmd_id"]
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
 
-        new_run_id = "RESEQ_" + "".join(random.choices("0123456789", k=5))
+        local_now = datetime.now() + timedelta(hours=8)
+        new_run_id = "RESEQ_" + local_now.strftime("%Y%m%d_%H%M%S")
+        
         for tid in final_seq:
             info = cmd_info_map[tid]
             writer.writerow({
                 "selection_run_id": new_run_id,
+                "original_run_id": info['selection_run_id'], # 保存原始 Run ID
                 "inv_scenario": inv_scenario,
                 "parent_carrier_id": info['parent_carrier_id'],
                 "dest_position": info['dest_position'],
@@ -140,12 +129,9 @@ def generate_optimized_sequence(num_batches=10, start_id=None):
     print(f"Done! Resequenced {len(final_seq)} jobs into {output_file}")
     return output_file, new_run_id
 
-
 if __name__ == '__main__':
     count = 10
     start = None
-    if len(sys.argv) > 1:
-        count = int(sys.argv[1])
-    if len(sys.argv) > 2:
-        start = sys.argv[2]
+    if len(sys.argv) > 1: count = int(sys.argv[1])
+    if len(sys.argv) > 2: start = sys.argv[2]
     generate_optimized_sequence(count, start)
