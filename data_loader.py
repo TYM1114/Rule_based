@@ -7,14 +7,14 @@ def parse_location_id(loc_id):
     return int(loc_id[0:5]), int(loc_id[5:8]), int(loc_id[8:10])
 
 def parse_carrier_id(car_id):
-    """解析 Carrier ID 並進行映射 (確保 ID > 0)"""
+    """解析 Carrier ID (確保 ID > 0)"""
     if not car_id: return 0
     clean_id = ''.join(filter(str.isdigit, car_id))
     return int(clean_id) + 1 if clean_id else 0
 
 def load_simulation_data(run_id):
     """從 CSV 載入模擬所需的所有資料。"""
-    print(f"Loading data for run id: {run_id}")
+    print(f"Reseq_id: {run_id}")
     inv_scenario = ""
     job_sequence = []
     target_dest_map = {}
@@ -25,13 +25,13 @@ def load_simulation_data(run_id):
         with open('resequence.csv', 'r', encoding='utf-8-sig') as f:
             if run_id in f.read():
                 csv_source = 'resequence.csv'
-                print(f"Using optimized resequence source: {csv_source}")
 
     try:
         with open(csv_source, 'r', encoding='utf-8-sig') as f:
             reader = csv.DictReader(f)
+            filter_col = 'reseq_id' if 'resequence.csv' in csv_source else 'selection_run_id'
             for row in reader:
-                if row['selection_run_id'] == run_id:
+                if row[filter_col] == run_id:
                     inv_scenario = row['inv_scenario']
                     p_id = parse_carrier_id(row['parent_carrier_id'])
                     if p_id == 0: continue
@@ -93,11 +93,11 @@ def get_tag_map(test_run_id):
     try:
         with open(search_file, 'r', encoding='utf-8-sig') as f:
             reader = csv.DictReader(f)
+            filter_col = 'reseq_id' if 'resequence.csv' in search_file else 'selection_run_id'
             for row in reader:
-                if row['selection_run_id'] == test_run_id:
+                if row[filter_col] == test_run_id:
                     p_id = parse_carrier_id(row['parent_carrier_id'])
-                    # 優先使用 original_run_id (如果存在)，否則使用 selection_run_id
-                    orig_run = row.get('original_run_id', row['selection_run_id'])
+                    orig_run = row['selection_run_id']
                     tag_map.setdefault(p_id, []).append({
                         'run': orig_run, 
                         'cmd': row['cmd_id']

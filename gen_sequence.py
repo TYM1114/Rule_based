@@ -14,7 +14,6 @@ def parse_carrier_id(car_id):
     return int(clean_id) + 1 if clean_id else 0
 
 def generate_optimized_sequence(num_batches=10, start_id=None):
-    print(f"--- Generating Optimized Sequence (Count: {num_batches}, Start ID: {start_id or 'Minimum'}) ---")
     
     selected_ids = []
     inv_scenario = ""
@@ -88,7 +87,7 @@ def generate_optimized_sequence(num_batches=10, start_id=None):
             target_stacks.setdefault(col, []).append(tid)
     for col in target_stacks: target_stacks[col].sort(key=lambda x: box_pos[x][2])
 
-    # 4. 懸吊系統評分邏輯 (Greedy 排序)
+    # 4. 系統評分邏輯 (Greedy 排序)
     def get_score(tid):
         r, b, l = box_pos[tid]
         bi = sum(1 for o in stacks[(r, b)] if box_pos[o][2] < l)
@@ -108,8 +107,8 @@ def generate_optimized_sequence(num_batches=10, start_id=None):
     # 6. 寫入結果
     output_file = 'resequence.csv'
     with open(output_file, 'w', newline='', encoding='utf-8-sig') as f:
-        # 新增 original_run_id 欄位
-        fieldnames = ["selection_run_id", "original_run_id", "inv_scenario", "parent_carrier_id", "dest_position", "cmd_id"]
+        # 調整欄位命名：reseq_id 為新生成的優化 ID，selection_run_id 為原始 ID
+        fieldnames = ["reseq_id", "selection_run_id", "inv_scenario", "parent_carrier_id", "dest_position", "cmd_id"]
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
 
@@ -120,15 +119,14 @@ def generate_optimized_sequence(num_batches=10, start_id=None):
             # Write ALL destination rows for this carrier to support Transfer missions
             for info in cmd_info_map[tid]:
                 writer.writerow({
-                    "selection_run_id": new_run_id,
-                    "original_run_id": info['selection_run_id'], # 保存原始 Run ID
+                    "reseq_id": new_run_id,
+                    "selection_run_id": info['selection_run_id'], # 還原為原始 selection_run_id
                     "inv_scenario": inv_scenario,
                     "parent_carrier_id": info['parent_carrier_id'],
                     "dest_position": info['dest_position'],
                     "cmd_id": info['cmd_id']
                 })
 
-    print(f"Done! Resequenced {len(final_seq)} jobs into {output_file}")
     return output_file, new_run_id
 
 if __name__ == '__main__':
