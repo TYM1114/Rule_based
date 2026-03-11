@@ -46,8 +46,9 @@ def generate_optimized_sequence(num_batches=10, start_id=None):
                 
                 if p_id not in all_target_dest_map:
                     all_target_dest_map[p_id] = []
-                    cmd_info_map[p_id] = row
+                    cmd_info_map[p_id] = [] # Changed to list to store all destination rows
                 all_target_dest_map[p_id].append(dest_bay)
+                cmd_info_map[p_id].append(row) # Store all matching rows for this carrier
                 
     except FileNotFoundError:
         print(f"Error: {csv_source} not found.")
@@ -116,15 +117,16 @@ def generate_optimized_sequence(num_batches=10, start_id=None):
         new_run_id = "RESEQ_" + local_now.strftime("%Y%m%d_%H%M%S")
         
         for tid in final_seq:
-            info = cmd_info_map[tid]
-            writer.writerow({
-                "selection_run_id": new_run_id,
-                "original_run_id": info['selection_run_id'], # 保存原始 Run ID
-                "inv_scenario": inv_scenario,
-                "parent_carrier_id": info['parent_carrier_id'],
-                "dest_position": info['dest_position'],
-                "cmd_id": info['cmd_id']
-            })
+            # Write ALL destination rows for this carrier to support Transfer missions
+            for info in cmd_info_map[tid]:
+                writer.writerow({
+                    "selection_run_id": new_run_id,
+                    "original_run_id": info['selection_run_id'], # 保存原始 Run ID
+                    "inv_scenario": inv_scenario,
+                    "parent_carrier_id": info['parent_carrier_id'],
+                    "dest_position": info['dest_position'],
+                    "cmd_id": info['cmd_id']
+                })
 
     print(f"Done! Resequenced {len(final_seq)} jobs into {output_file}")
     return output_file, new_run_id
