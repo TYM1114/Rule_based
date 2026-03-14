@@ -41,7 +41,7 @@
 
 1. **同步**：`python DB.py` (SQLAlchemy 抓取)。
 2. **解析**：`data_generator.py` 處理座標與 ID 映射。
-3. **執行**：`main.py` 或 `run_experiment_noreset.py` 呼交核心 `rb_solver`。
+3. **執行**：`main.py` 或 `run_experiment_noreset.py` 呼叫核心 `rb_solver`。
 
 ## 快速啟動
 
@@ -61,6 +61,4 @@ python run_experiment_noreset.py --limit 100
 
 ---
 
-## 注意事項
-- **日誌位置**：所有產出物皆在 `logs/` 資料夾中，檔名格式為 `output_[run_id].csv`。
-- **記憶體使用**：高速模式會消耗約 300MB-500MB 記憶體，請視硬體狀況調整 `--limit`。
+
