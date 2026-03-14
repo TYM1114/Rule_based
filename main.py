@@ -89,34 +89,39 @@ class YardSimulationController:
 
     def run_solver(self):
         print(f"\n[Phase 3] Running Rule-Based Solver")
-        
+        return self.run_with_data(self.yard_config, self.boxes, self.job_sequence, self.sku_map, self.target_dest_map)
+
+    def run_with_data(self, yard_config, boxes, job_sequence, sku_map, target_dest_map):
         # Merge YAML config with specific RB Solver parameters
-        full_config = self.yard_config.copy()
+        full_config = yard_config.copy()
         full_config.update({
             'agv_count': self.config['solver']['agv_count'],
             'port_count': self.config['yard']['port_count'],
             'w_penalty_lookahead': self.config['solver']['w_penalty_lookahead'],
             't_travel': self.config['time']['t_travel'],
             't_handle': self.config['time']['t_handle'],
-            't_process': self.config['time']['t_port_handle'],  # 對應舊的 t_process
-            't_pick': self.config['time']['t_unit_process'],     # 對應舊的 t_pick
+            't_process': self.config['time']['t_port_handle'],  # 修正：對應舊的 t_process
+            't_pick': self.config['time']['t_unit_process'],     # 修正：對應舊的 t_pick
             'sim_start_epoch': self.config['time']['sim_start_epoch']
         })
 
         start_time = time.time()
         logs = rb_solver.run_rb_solver(
             full_config, 
-            self.boxes, 
-            self.job_sequence, 
-            self.sku_map, 
-            self.target_dest_map
+            boxes, 
+            job_sequence, 
+            sku_map, 
+            target_dest_map
         )
         duration = time.time() - start_time
         print(f"Solver finished in {duration:.2f} seconds.")
         return logs
 
+
     def export_results(self, logs):
-        output_file = os.path.join(self.log_dir, 'output_missions_python.csv')
+        # 使用 active_run_id 命名，防止批量實驗時覆寫
+        prefix = f"output_{self.active_run_id}" if self.active_run_id else "output_missions"
+        output_file = os.path.join(self.log_dir, f"{prefix}.csv")
         counts = {"target": 0, "reshuffle": 0, "return": 0, "transfer": 0}
         
         with open(output_file, 'w', newline='') as f:

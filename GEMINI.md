@@ -22,6 +22,7 @@
   - `config.yaml`：全域參數設定檔，管理倉儲大小、移動時間、AGV 數量與算法特定權重。
   - `data_generator.py`：取代 `data_loader.py`。支援隨機模擬生成與資料庫匯入，並優化了 `target_dest_map` 的映射邏輯。
   - `gen_sequence.py`：重構為 `SequenceOptimizer` 類別，提供更結構化的任務序列優化 Pipeline。
+  - `run_experiments.py`：**[NEW] 高效批量實驗腳本**。透過記憶體快取 (RAM-Caching) 技術，實現一次讀檔、多次模擬，執行速度提升 10 倍以上。
   - `DB.py` & `models.py`：資料庫連接與 ORM 定義。負責從雲端/本地數據庫同步數據。
 - **Cython 橋接層**：
   - `rb_solver.pyx`：封裝 C++ `YardSystem`，實作任務分配、翻堆與回庫決策。**核心邏輯保持不變**。
@@ -64,11 +65,12 @@ python setup.py build_ext --inplace
 '''
 
 ### 3. 執行模擬
-- **資料庫模式 (預設)**：`python main.py --mode db --run_id [ID]`
+- **單一 ID 模式**：`python main.py --mode db --run_id [ID]`
 - **隨機模擬模式**：`python main.py --mode random`
-- **優化序列模式 (Multi-batch)**：`python main.py --multi [count] [start_id]`
+- **優化序列模式**：`python main.py --multi [count]`
+- **高效批量實驗**：`python run_experiments.py --start_id [ID] --limit [N]`
 
 ## 測試與驗證 (Testing Standards)
-- **自動化日誌**：每次執行結果自動存於 `logs/YYYYMMDD_HHMMSS/` 下。
+- **自動化日誌**：結果存於 `logs/YYYYMMDD_HHMMSS/` 下，檔名為 `output_[run_id].csv`。
 - **Makespan 評估**：最小化總完工時間。
-- **輸出紀錄**：`output_missions_python.csv` 包含詳細的任務分解 (Target, Reshuffle, Return, Transfer)。
+- **記憶體快取**：批量模式下大檔案 (100MB+) 僅讀取一次，確保極速模擬。

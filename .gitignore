@@ -6,6 +6,8 @@ __pycache__/
 
 DB/
 Outdated/
+logs/
+
 # Cython / C++ compilation products
 build/
 *.so

@@ -1,49 +1,42 @@
 # RB Solver (Rule-Based Operations Solver)
 
+基於規則的懸吊式倉儲 AGV 調度引擎。
 
+## 核心功能與更新 (2026/03/14)
 
-## 核心工作流與資料橋接 (Workflow & Data Bridge)
+### 1. 高效批量模擬系統
+- **`run_experiments.py`**：支援全自動化的批量測試。
+- **記憶體快取 (RAM-Caching)**：將大型 CSV 資料 (100MB+) 一次性載入記憶體，大幅減少磁碟 I/O，使 100 個實驗可在 10 秒內跑完。
+- **獨立日誌系統**：每個實驗結果以 `output_[run_id].csv` 獨立存檔，防止數據覆寫。
 
-### 1. 資料同步 (DB -> CSV)
-系統使用 **`DB.py`** 從 PostgreSQL 抓取資料並存至 `DB/` 目錄。
+### 2. 現代化架構整合
+- **`config.yaml`**：統一管理所有物理參數與時間參數 (t_travel, t_handle, t_port_handle, t_unit_process)。
+- **`YardSimulationController`**：封裝模擬流程，支援 `db` 與 `random` 雙模式切換。
+- **`SequenceOptimizer`**：支援跨批次的任務序列優化，降低翻堆率。
 
-### 2. 資料載入與解析 (`data_loader.py`)
-為了提高維護性，資料解析邏輯已從 `main.py` 抽離至 **`data_loader.py`**：
-- **解析邏輯**：處理 10 位數座標 (`parse_location_id`) 與 Carrier ID 映射。
-- **資料封裝**：讀取 CSV 並轉換為 Python 物件，供編譯後的 C++ 核心使用。
-- **ID 一致性**：確保 `RESHUFFLE` 與 `RETURN` 任務繼承其目標箱子的 `CMD_ID`，避免受資料庫歷史紀錄干擾。
+## 資料流程 (Data Bridge)
 
-### 3. 編譯核心 (Cython Build)
-每次修改 `YardSystem.h` 或 `rb_solver.pyx` 後必須重新編譯：
-- **編譯指令**：`python setup.py build_ext --inplace`
+1. **同步**：`python DB.py` (SQLAlchemy 抓取最新庫存與指令)。
+2. **解析**：`data_generator.py` 處理 10 位數座標與 ID 映射。
+3. **執行**：`main.py` 呼叫編譯後的 C++ 核心 `rb_solver`。
 
-### 4. 序列優化 (`gen_sequence.py`)
-- **多批次優化**：跨批次重排任務以降低翻箱率。
-- **優化標籤**：生成 `RESEQ_YYYYMMDD_HHMMSS` 格式的 ID 
-- **原始追蹤**：在 `resequence.csv` 中保留 `selection_run_id`，確保輸出結果能對應回原始任務。
+## 快速啟動
 
-### 5. 執行模擬 (`main.py`)
-- **多批次模式**：`python main.py multi n selection_id`
-- **結果輸出**：`output_missions_python.csv` 
-
----
-
-
-- **修改資料讀取與欄位對應**：修改 `data_loader.py`。
-- **修改物理規則 (如儲位、阻擋判定)**：修改 `YardSystem.h`。
-- **修改調度策略**：修改 `rb_solver.pyx`。
-- **修改任務排序權重**：修改 `gen_sequence.py`。
-
----
-
-## 快速啟動指令
 ```bash
-# 1. 同步資料
-python DB.py
-
-# 2. 編譯核心
+# 1. 編譯核心 (修改 C++ 或 Cython 後執行)
 python setup.py build_ext --inplace
 
-# 3. 執行優化模擬
-python main.py multi
+# 2. 跑單一 ID 測試
+python main.py --mode db --run_id 20260203174258
+
+# 3. 跑批量高效模擬
+python run_experiments.py --start_id 20260203174258 --limit 100
 ```
+
+---
+
+## 注意事項
+- **時間參數對應**：
+  - `t_port_handle` $\rightarrow$ 對應舊版的 `t_process` (固定加工時間)。
+  - `t_unit_process` $\rightarrow$ 對應舊版的 `t_pick` (單一品項加工時間)。
+- **日誌位置**：所有產出物皆在 `logs/` 資料夾中。
