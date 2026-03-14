@@ -80,7 +80,7 @@ def load_simulation_data(run_id):
 
     config = {
         'max_row': 6, 'max_bay': 11, 'max_level': 8, 'total_boxes': max_id + 1000,
-        'agv_count': 5, 'port_count': 3, 'workstation_count': 3,
+        'agv_count': 2, 'port_count': 3, 'workstation_count': 3,
         't_travel': 5.0, 't_handle': 30.0, 't_process': 10.0, 't_pick': 2.0,
         'sim_start_epoch': 1705363200, 'w_penalty_lookahead': 500.0,
     }

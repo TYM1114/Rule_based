@@ -86,7 +86,7 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map, dict tar
         for k in range(i, <int>c_seq.size()):
             remaining_targets_map[c_seq[k]] = True
 
-        # Phase 1: Reshuffle (翻堆)
+# Phase 1: Reshuffle (翻堆)
         reshuffle_count = 0
         while not yard.isTop(targetId):
             reshuffle_count += 1
@@ -159,7 +159,7 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map, dict tar
                 # 找不到儲位或 AGV，跳出當前目標的 Reshuffle
                 break
 
-        # Phase 2: Target Retrieval (出庫)
+# Phase 2: Target Retrieval (出庫)
         src_coord = yard.getBoxPosition(targetId)
         if src_coord.row == -1: 
             i += 1
@@ -226,7 +226,7 @@ def run_rb_solver(dict config, list boxes, list sequence, dict sku_map, dict tar
         pl.duration_detail = f"{t_handle} + {bestDropoffStart - bestPickupEnd} + {t_handle} + {t_process}"
         py_logs.append(pl)
 
-        # New Phase 3: Dynamic Return/Transfer Logic
+# Phase 3: Dynamic Return/Transfer Logic
         is_returned = False
         current_makespan = final_pickupTime 
         current_pos_ws = Coordinate(-1, bestWorkstation, bestPort)

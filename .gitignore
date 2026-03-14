@@ -12,7 +12,7 @@ rb_solver.cpp
 # output_missions_python.csv
 
 # Project specific ignores (Requested)
-GEMINI.md
+# GEMINI.md
 
 # System/IDE files
 .DS_Store
