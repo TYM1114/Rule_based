@@ -89,30 +89,30 @@ class CurCmdDetail(Base):
     update_user = Column(String)
     update_time = Column(DateTime)
 
-class CurOrderMaster(Base):
-    __tablename__ = 'cur_order_master'
-    __table_args__ = {'schema': 'dev'}
+# class CurOrderMaster(Base):
+#     __tablename__ = 'cur_order_master'
+#     __table_args__ = {'schema': 'dev'}
     
-    order_no = Column(String, primary_key=True)
-    order_date = Column(DateTime)
-    put_wall_group = Column(String)
-    create_user = Column(String)
-    create_time = Column(DateTime)
-    update_user = Column(String)
-    update_time = Column(DateTime)
-    original_order_no = Column(String)
-    scenario = Column(String, primary_key=True)
+#     order_no = Column(String, primary_key=True)
+#     order_date = Column(DateTime)
+#     put_wall_group = Column(String)
+#     create_user = Column(String)
+#     create_time = Column(DateTime)
+#     update_user = Column(String)
+#     update_time = Column(DateTime)
+#     original_order_no = Column(String)
+#     scenario = Column(String, primary_key=True)
 
-class CurOrderDetail(Base):
-    __tablename__ = 'cur_order_detail'
-    __table_args__ = {'schema': 'dev'}
+# class CurOrderDetail(Base):
+#     __tablename__ = 'cur_order_detail'
+#     __table_args__ = {'schema': 'dev'}
     
-    order_line_id = Column(String, primary_key=True)
-    order_no = Column(String, primary_key=True)
-    material_id = Column(String)
-    quantity = Column(Integer)
-    dest_position = Column(String)
-    dest_storage_id = Column(String)
-    update_user = Column(String)
-    update_time = Column(DateTime)
-    scenario = Column(String, primary_key=True)
+#     order_line_id = Column(String, primary_key=True)
+#     order_no = Column(String, primary_key=True)
+#     material_id = Column(String)
+#     quantity = Column(Integer)
+#     dest_position = Column(String)
+#     dest_storage_id = Column(String)
+#     update_user = Column(String)
+#     update_time = Column(DateTime)
+#     scenario = Column(String, primary_key=True)

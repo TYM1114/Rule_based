@@ -1,9 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from models import (
-    Base, CurCarrier, CfgLocation, CurInventory, 
-    CurCmdMaster, CurCmdDetail, CurOrderMaster, CurOrderDetail
-)
+from models import ( Base, CurCarrier, CfgLocation, CurCmdMaster, CurCmdDetail,CurInventory)
 from sqlalchemy.pool import NullPool
 import pandas as pd
 
@@ -38,11 +35,11 @@ try:
         # Export all models defined in models.py
         CurCarrier.export_to_csv(session)
         CfgLocation.export_to_csv(session)
-        CurInventory.export_to_csv(session)
         CurCmdMaster.export_to_csv(session)
         CurCmdDetail.export_to_csv(session)
-        CurOrderMaster.export_to_csv(session)
-        CurOrderDetail.export_to_csv(session)
+        CurInventory.export_to_csv(session)
+        # CurOrderMaster.export_to_csv(session)
+        # CurOrderDetail.export_to_csv(session)
         
     except Exception as e:
         print(f"Operation failed: {e}")

@@ -3,13 +3,13 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+
+DB/
+Outdated/
 # Cython / C++ compilation products
 build/
 *.so
 rb_solver.cpp
-
-# Simulation outputs
-# output_missions_python.csv
 
 # Project specific ignores (Requested)
 GEMINI.md
@@ -19,6 +19,3 @@ GEMINI.md
 .vscode/
 .env
 
-Outdated/
-rb_solver.pyx.bak
-YardSystem.h.bak

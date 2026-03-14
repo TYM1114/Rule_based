@@ -10,56 +10,52 @@
 - **純規則導向調度 (Pure Rule-Based Scheduling)**：採用啟發式演算法進行 AGV 與任務分配。
 - **懸吊式系統優化 (Suspended System Logic)**：針對底部存取、向下掛載的物理結構進行路徑與阻擋優化。
 - **智慧回庫演算法 (Enhanced Return-to-Storage Logic)**：優先選擇未來任務阻擋最少且路徑成本最低的儲位。
-- **序列優化 (Sequence Optimization)**：透過 `gen_sequence.py` 從多個批次中挑選並生成最優化任務序列。
+- **序列優化 (Sequence Optimization)**：透過 `gen_sequence.py` (SequenceOptimizer) 從多個批次中挑選並生成最優化任務序列。
 - **資料庫整合 (DB Integration)**：支援透過 SQLAlchemy 從 PostgreSQL 自動抓取並導出 CSV 數據。
 
-## 架構說明
+## 架構說明 (2026/03/14 升級)
+
+系統已整合現代化基礎設施，提升參數管理、日誌追蹤與資料載入的效率。
 
 - **Python 層 (流程調度與模擬)**：
-  - `main.py`：主流程控制。支援從 `resequence.csv` 讀取優化序列，並執行 `rb_solver`。
+  - `main.py`：採用 `YardSimulationController` 類別化架構。整合 `DualLogger` 以實現終端機與檔案雙向輸出。支援 `--mode`, `--run_id` 等多樣化參數。
+  - `config.yaml`：全域參數設定檔，管理倉儲大小、移動時間、AGV 數量與算法特定權重。
+  - `data_generator.py`：取代 `data_loader.py`。支援隨機模擬生成與資料庫匯入，並優化了 `target_dest_map` 的映射邏輯。
+  - `gen_sequence.py`：重構為 `SequenceOptimizer` 類別，提供更結構化的任務序列優化 Pipeline。
   - `DB.py` & `models.py`：資料庫連接與 ORM 定義。負責從雲端/本地數據庫同步數據。
-  - `gen_sequence.py`：任務重排優化邏輯，旨在降低翻堆率 (Reshuffle Rate)。
 - **Cython 橋接層**：
-  - `rb_solver.pyx`：封裝 C++ `YardSystem`，實作任務分配、翻堆與回庫決策。
+  - `rb_solver.pyx`：封裝 C++ `YardSystem`，實作任務分配、翻堆與回庫決策。**核心邏輯保持不變**。
 - **C++ 核心層**：
-  - `YardSystem.h`：定義 **懸吊式 3D 矩陣**。包含 `nextAvailableTier` 計算、垂直阻擋判定與物理移動邏輯。
+  - `YardSystem.h`：定義 **懸吊式 3D 矩陣**。包含垂直阻擋判定與物理移動邏輯。
 
 ## 物理規則與邏輯 (Physical Rules)
 
 ### 1. 懸吊式系統架構 (Suspended System)
 - **存取方向**：AGV 從 **底部 (Level 0 之下)** 進行取箱與放箱。
-- **座標定義**：
-  - **Level 7**：最頂層 (靠近天花板，起始掛載位置)。
-  - **Level 0**：最底層 (靠近地面，存取口位置)。
-- **掛載規則**：箱子是「由上往下」掛載。第一個箱子掛在 Level 7，後續箱子掛在現有最下方箱子的下方 (z - 1)。
-- **阻擋判定 (Vertical Blocking)**：
-  - **下方阻擋上方**：Level 較小的箱子會阻擋 Level 較大的箱子。
-  - *範例*：若要取出 Level 7 的箱子，必須先將 Level 0~6 的所有箱子進行翻箱 (Reshuffle)。
+- **座標定義**：**Level 7** (最頂層) 至 **Level 0** (最底層)。
+- **掛載規則**：由上往下掛載。
+- **阻擋判定**：Level 較小的箱子會阻擋 Level 較大的箱子。
 
 ### 2. 儲位搜尋邏輯 (Slot Searching)
-- **可用位置**：新的箱子必須放置在該 Bay 目前 **最下方箱子的更下方**。
-- **層級計算**：`nextAvailableTier` 若為空則從 `MAX_TIERS - 1` (Level 7) 開始。
+- **可用位置**：放置在該 Bay 目前最下方箱子的更下方。
+- **層級計算**：`nextAvailableTier` 計算。
 
 ## 資料對應與初始化 (Data Mapping)
 
 ### 1. 數據獲取與同步
-- 使用 `python DB.py` 同步最新庫存與命令資料至 `DB/` 目錄下。
-- 數據源包括：`cur_inventory.csv`, `cur_carrier.csv`, `cur_cmd_master.csv`, `cur_cmd_detail.csv`。
+- 使用 `python DB.py` 同步最新庫存與命令資料至 `DB/` 目錄。
+- 支援 `.env` 管理資料庫密鑰（參考 `.env.example`）。
 
-### 2. 座標解析 (Location ID: 10位數)
-- **Row (x)**：`id[0:5]` (0-5)
-- **Bay (y)**：`id[5:8]` (0-10)
-- **Level (z)**：`id[8:10]` (0-7)
-
-### 3. ID 映射基準
-- 系統內部統一使用 **Parent Carrier ID** 作為唯一標識符。
-- 解析邏輯：`int(''.join(filter(str.isdigit, car_id))) + 1` (確保 ID > 0)。
+### 2. 座標與 ID 映射
+- **座標 (10位數)**：`Row[0:5]`, `Bay[5:8]`, `Level[8:10]`。
+- **ID 映射**：系統內部統一使用 `Parent Carrier ID` 作為唯一標識符。
+- **工作站映射**：WS 0 映射至 Bay -1，WS 1 映射至 Bay -2，依此類推。
 
 ## 編譯與執行
 
 ### 1. 環境準備
 '''bash
-pip install setuptools numpy cython pandas sqlalchemy psycopg2-binary python-dotenv
+pip install setuptools numpy cython pandas sqlalchemy psycopg2-binary python-dotenv pyyaml
 '''
 
 ### 2. 編譯 C++ 核心
@@ -68,10 +64,11 @@ python setup.py build_ext --inplace
 '''
 
 ### 3. 執行模擬
-- **單一批次**：`python main.py [run_id]`
-- **優化序列模式**：`python main.py multi` (會自動觸發 `gen_sequence.py`)
+- **資料庫模式 (預設)**：`python main.py --mode db --run_id [ID]`
+- **隨機模擬模式**：`python main.py --mode random`
+- **優化序列模式 (Multi-batch)**：`python main.py --multi [count] [start_id]`
 
 ## 測試與驗證 (Testing Standards)
-- **Makespan 評估**：計算總完工時間，目標為最小化 AGV 閒置與翻箱等待。
-- **輸出紀錄**：`output_missions_python.csv` 包含詳細的任務分解 (Target, Reshuffle, Return, Transfer) 與時間戳。
-- **驗證指標**：確保同一時間同一座標僅有一個箱子，且 AGV 任務路徑在時間軸上不重疊。
+- **自動化日誌**：每次執行結果自動存於 `logs/YYYYMMDD_HHMMSS/` 下。
+- **Makespan 評估**：最小化總完工時間。
+- **輸出紀錄**：`output_missions_python.csv` 包含詳細的任務分解 (Target, Reshuffle, Return, Transfer)。
