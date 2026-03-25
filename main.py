@@ -54,11 +54,9 @@ class YardSimulationController:
         execution_log_path = os.path.join(self.log_dir, 'execution_log.txt')
         sys.stdout = DualLogger(execution_log_path)
         
-        print("==================================================")
-        print(f"RB SOLVER SIMULATION PIPELINE STARTED")
+
         print(f"Time  : {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"Log Dir: {self.log_dir}")
-        print("==================================================")
 
     def optimize_sequence(self, num_batches=10, start_id=None):
         print("\n[Phase 1] Sequence Optimization")
@@ -100,8 +98,8 @@ class YardSimulationController:
             'w_penalty_lookahead': self.config['solver']['w_penalty_lookahead'],
             't_travel': self.config['time']['t_travel'],
             't_handle': self.config['time']['t_handle'],
-            't_process': self.config['time']['t_port_handle'],  # 修正：對應舊的 t_process
-            't_pick': self.config['time']['t_unit_process'],     # 修正：對應舊的 t_pick
+            't_process': self.config['time']['t_port_handle'],  
+            't_pick': self.config['time']['t_unit_process'],     
             'sim_start_epoch': self.config['time']['sim_start_epoch']
         })
 
@@ -119,7 +117,6 @@ class YardSimulationController:
 
 
     def export_results(self, logs):
-        # 使用 active_run_id 命名，防止批量實驗時覆寫
         prefix = f"output_{self.active_run_id}" if self.active_run_id else "output_missions"
         output_file = os.path.join(self.log_dir, f"{prefix}.csv")
         counts = {"target": 0, "reshuffle": 0, "return": 0, "transfer": 0}
@@ -142,13 +139,11 @@ class YardSimulationController:
                     s_pos, d_pos, log.start_time-epoch, log.end_time-epoch, log.makespan, log.duration_detail
                 ])
 
-        print(f"\n==================================================")
         print(f"SIMULATION SUMMARY")
         print(f"Total Missions: {len(logs)}")
         print(f"Target: {counts['target']} | Reshuffle: {counts['reshuffle']} | Return: {counts['return']} | Transfer: {counts['transfer']}")
         print(f"Final Makespan: {logs[-1].makespan if logs else 0:.2f}")
         print(f"Results saved to: {output_file}")
-        print("==================================================")
 
 def main():
     import argparse

@@ -29,7 +29,18 @@ def run_exp():
     session_start_time = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_log_dir = controller.log_dir 
     
+    # 預先建立 combo_summary.csv 並寫入 Header (時時紀錄的起點)
+    combo_report_path = os.path.join(base_log_dir, "combo_summary.csv")
+    with open(combo_report_path, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            "Order Scenario", "Inv Scenario", "Batch Time Window", 
+            "Batch Algo Ver", "Selection Algo Ver", 
+            "Number of Tasks", "Makespan", "CPU time"
+        ])
+
     summary_data = []
+    # combo_summary_list = [] # 移除這個，改用時時寫入
 
     for inv in INV_SCENARIOS:
         for win in BATCH_WINDOWS:
@@ -39,7 +50,8 @@ def run_exp():
 
                     combo_name = f"{inv}_{win}_{b_algo}_{s_algo}"
                     combo_dir = os.path.join(base_log_dir, combo_name)
-
+                    
+                    # (中間省略搜尋 target_run_ids 的邏輯)
                     target_run_ids = []
                     for row in batch_loader.cached_master:
                         if (row.get('order_scenario') == ORDER_SCENARIO and
@@ -65,7 +77,6 @@ def run_exp():
 
                     for rid in target_run_ids:
                         try:
-
                             res = batch_loader.get_data_for_run(rid, controller.config)
                             if not res: continue
                             yard_cfg, boxes, job_seq, sku_map, dest_map, meta = res
@@ -73,7 +84,6 @@ def run_exp():
                             controller.active_run_id = rid
                             controller.log_dir = combo_dir
                             
-                            # 執行模擬並精確計算 CPU Time
                             start_cpu = time.process_time()
                             logs = controller.run_with_data(yard_cfg, boxes, job_seq, sku_map, dest_map)
                             cpu_duration = time.process_time() - start_cpu
@@ -83,10 +93,8 @@ def run_exp():
                             
                             print(f"  > ID: {rid} | Tasks: {num_tasks} | Makespan: {final_makespan:.2f} | CPU: {cpu_duration:.4f}s")
                             
-                            # 輸出詳細 CSV
                             controller.export_results(logs)
                             
-                            # 累加組合數據
                             combo_total_tasks += num_tasks
                             combo_total_makespan += final_makespan
                             combo_total_cpu_time += cpu_duration
@@ -96,7 +104,7 @@ def run_exp():
                         except Exception as e:
                             print(f"  !! Error processing {rid}: {e}")
 
-                    # 輸出組合彙總結果
+                    # 輸出組合彙總結果到 Terminal
                     print("-" * 50)
                     print(f"[Combo Summary] {combo_name}")
                     print(f"  Total Tasks    : {combo_total_tasks}")
@@ -104,7 +112,18 @@ def run_exp():
                     print(f"  Total CPU Time : {combo_total_cpu_time:.4f}s")
                     print("-" * 50)
 
-    # 4. 產出最終彙總報告
+                    # 準備該 Combo 數據
+                    combo_row = [
+                        ORDER_SCENARIO, inv, win, b_algo, s_algo,
+                        combo_total_tasks, combo_total_makespan, combo_total_cpu_time
+                    ]
+
+                    # 即時 Append 到總表 (像 execution_log 一樣時時紀錄)
+                    with open(combo_report_path, 'a', newline='') as f:
+                        writer = csv.writer(f)
+                        writer.writerow(combo_row)
+
+    # 4. 產出最終彙總報告 (詳細到 Run ID 的)
     report_path = os.path.join(base_log_dir, "experiment_total_summary.csv")
     with open(report_path, 'w', newline='') as f:
         writer = csv.writer(f)
@@ -112,6 +131,10 @@ def run_exp():
         writer.writerows(summary_data)
 
     print(f"\n[All Completed] Global summary saved to: {report_path}")
+    print(f"                Combo summary (image.png style) saved to: {combo_report_path}")
+
+if __name__ == "__main__":
+    run_exp()
 
 if __name__ == "__main__":
     run_exp()
