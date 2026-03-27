@@ -1,0 +1,5 @@
+mission_no,agv_id,mission_type,container_id,related_target_id,src_pos,dst_pos,start_s,end_s,makespan,duration_breakdown
+1,0,target,172,172,(2;7;1),WS 2 (Port 1),45,175,175.0,30.0 + 60.0 + 30.0 + 10.0
+2,0,return,172,172,WS 2 (Port 1),(1;0;1),515,595,595.0,30.0 + 20.0 + 30.0
+3,1,target,23,23,(4;5;0),WS 2 (Port 2),45,175,175.0,30.0 + 60.0 + 30.0 + 10.0
+4,1,return,23,23,WS 2 (Port 2),(1;0;0),183,625,625.0,30.0 + 382.0 + 30.0

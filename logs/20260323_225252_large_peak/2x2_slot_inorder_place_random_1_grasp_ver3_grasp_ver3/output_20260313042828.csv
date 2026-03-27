@@ -1,0 +1,7 @@
+mission_no,agv_id,mission_type,container_id,related_target_id,src_pos,dst_pos,start_s,end_s,makespan,duration_breakdown
+1,0,reshuffle,377,119,(2;4;3),(0;2;4),30,110,110.0,30.0 + 20.0 + 30.0
+2,1,target,119,119,(2;4;4),WS 2 (Port 1),60,175,175.0,30.0 + 45.0 + 30.0 + 10.0
+3,0,return,119,119,WS 2 (Port 1),(1;0;1),191,271,271.0,30.0 + 20.0 + 30.0
+4,2,reshuffle,286,154,(0;9;5),(0;2;3),45,140,140.0,30.0 + 35.0 + 30.0
+5,2,target,154,154,(0;9;6),WS 2 (Port 1),175,305,305.0,30.0 + 60.0 + 30.0 + 10.0
+6,0,return,154,154,WS 2 (Port 1),(1;0;0),329,409,409.0,30.0 + 20.0 + 30.0
