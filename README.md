@@ -79,16 +79,9 @@
 
 ## 快速開始
 
-### 環境需求
-*   Python 3.10+
-*   Cython / C++ Compiler (如 MSVC 或 GCC)
-*   依賴套件：`pip install -r requirements.txt`
-
 ### 編譯與執行
 1. **編譯核心**：`python setup.py build_ext --inplace`
-2. **隨機模式**：`python main.py --mode random`
-3. **資料庫模式**：`python main.py --mode db --run_id [YOUR_RUN_ID]`
-4. **批量實驗**：`python main.py multi 10 [START_ID]`
+2. **批量實驗**：`python main.py multi 10 [START_ID]`
 
 ---
 
