@@ -1,4 +1,4 @@
-# Yard Simulation System - Rule-Based Solver
+# Rule-Based Solver
 
 本專案是一個針對**懸吊式自動化倉儲系統**開發的模擬與調度平台。核心演算法採用 Rule-Based 策略，並透過 Cython (C++) 進行運算加速，旨在優化 AGV 的調度、貨櫃的出庫序列以及翻堆（Reshuffle）過程中的儲位分配。
 
